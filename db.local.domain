@@ -1,0 +1,12 @@
+$TTL    604800
+@       IN      SOA     ns1.local.domain. admin.local.domain. (
+                              3         ; Serial
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+;
+@       IN      NS      ns1.local.domain.
+@       IN      A       192.168.1.10    ; IP of your DNS server
+ns1     IN      A       192.168.1.10
+www     IN      A       192.168.1.11    ; Example web server
