@@ -1,0 +1,19 @@
+acl "trusted" {
+        127.0.0.0/8;
+        192.168.1.0/24;  # Your local network range
+};
+
+options {
+        directory "/var/cache/bind";
+
+        recursion yes;
+        allow-query { trusted; };
+
+        forwarders {
+                8.8.8.8;
+                8.8.4.4;
+        };
+
+        dnssec-validation auto;
+        listen-on-v6 { any; };
+};
