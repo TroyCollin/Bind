@@ -1,70 +1,39 @@
 ---
-- name: Install BIND and deploy config from GitHub
+- name: Install BIND9 and Sync Config from TroyCollin/Bind
   hosts: dns_servers
-  become: true
-  vars:
-    bind_config_repo_url: "https://github.com" # Replace with your repo URL
-    bind_config_dest_dir: "/etc/bind" # Common path for Debian/Ubuntu
-    bind_service_name: "bind9" # Use "named" for RHEL/CentOS systems
-
+  become: yes
   tasks:
-    - name: Ensure Git is installed
-      ansible.builtin.package:
-        name: git
+    - name: Ensure BIND9 and Git are installed
+      ansible.builtin.apt:
+        name: 
+          - bind9
+          - git
         state: present
+        update_cache: yes
 
-    - name: Install BIND package
-      ansible.builtin.package:
-        name: bind9
-        state: present
-
-    - name: Ensure BIND configuration directories exist
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        owner: bind
-        group: bind
-        mode: '0755'
-      loop:
-        - "{{ bind_config_dest_dir }}"
-        - "{{ bind_config_dest_dir }}/zones" # Directory for zone files
-        - "/tmp/bind_repo_clone" # Temporary directory for cloning
-
-    - name: Clone BIND configuration repository
+    - name: Clone configuration from GitHub
       ansible.builtin.git:
-        repo: "{{ bind_config_repo_url }}"
-        dest: "/tmp/bind_repo_clone"
-        single_branch: true
-        version: main # Or specify a specific commit hash or tag for stability
+        repo: 'https://github.com/TroyCollin/Bind.git'
+        dest: /tmp/bind_git_repo
+        version: main
+        force: yes  # Overwrites local changes in /tmp to stay synced with GitHub
 
-    - name: Copy main named.conf from repo to BIND directory
+    - name: Deploy BIND configuration files
       ansible.builtin.copy:
-        src: "/tmp/bind_repo_clone/named.conf"
-        dest: "{{ bind_config_dest_dir }}/named.conf"
-        owner: bind
+        src: "/tmp/bind_git_repo/{{ item }}"
+        dest: "/etc/bind/{{ item }}"
+        owner: root
         group: bind
         mode: '0644'
-      notify:
-        - Restart BIND service
-
-    - name: Copy zone files from repo to BIND directory
-      ansible.builtin.copy:
-        src: "/tmp/bind_repo_clone/zones/"
-        dest: "{{ bind_config_dest_dir }}/zones/"
-        owner: bind
-        group: bind
-        mode: '0644'
-      notify:
-        - Restart BIND service
-      # Optional: Use a fileglob to copy only specific file types (e.g., *.zone)
-
-    - name: Remove temporary clone directory
-      ansible.builtin.file:
-        path: "/tmp/bind_repo_clone"
-        state: absent
+        remote_src: yes  # Tells Ansible the 'src' is already on the target machine
+      loop:
+        - named.conf.options
+        - named.conf.local
+        - db.local.domain
+      notify: Restart BIND
 
   handlers:
-    - name: Restart BIND service
+    - name: Restart BIND
       ansible.builtin.service:
-        name: "{{ bind_service_name }}"
+        name: bind9
         state: restarted
