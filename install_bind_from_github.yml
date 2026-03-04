@@ -1,0 +1,70 @@
+---
+- name: Install BIND and deploy config from GitHub
+  hosts: dns_servers
+  become: true
+  vars:
+    bind_config_repo_url: "https://github.com" # Replace with your repo URL
+    bind_config_dest_dir: "/etc/bind" # Common path for Debian/Ubuntu
+    bind_service_name: "bind9" # Use "named" for RHEL/CentOS systems
+
+  tasks:
+    - name: Ensure Git is installed
+      ansible.builtin.package:
+        name: git
+        state: present
+
+    - name: Install BIND package
+      ansible.builtin.package:
+        name: bind9
+        state: present
+
+    - name: Ensure BIND configuration directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: bind
+        group: bind
+        mode: '0755'
+      loop:
+        - "{{ bind_config_dest_dir }}"
+        - "{{ bind_config_dest_dir }}/zones" # Directory for zone files
+        - "/tmp/bind_repo_clone" # Temporary directory for cloning
+
+    - name: Clone BIND configuration repository
+      ansible.builtin.git:
+        repo: "{{ bind_config_repo_url }}"
+        dest: "/tmp/bind_repo_clone"
+        single_branch: true
+        version: main # Or specify a specific commit hash or tag for stability
+
+    - name: Copy main named.conf from repo to BIND directory
+      ansible.builtin.copy:
+        src: "/tmp/bind_repo_clone/named.conf"
+        dest: "{{ bind_config_dest_dir }}/named.conf"
+        owner: bind
+        group: bind
+        mode: '0644'
+      notify:
+        - Restart BIND service
+
+    - name: Copy zone files from repo to BIND directory
+      ansible.builtin.copy:
+        src: "/tmp/bind_repo_clone/zones/"
+        dest: "{{ bind_config_dest_dir }}/zones/"
+        owner: bind
+        group: bind
+        mode: '0644'
+      notify:
+        - Restart BIND service
+      # Optional: Use a fileglob to copy only specific file types (e.g., *.zone)
+
+    - name: Remove temporary clone directory
+      ansible.builtin.file:
+        path: "/tmp/bind_repo_clone"
+        state: absent
+
+  handlers:
+    - name: Restart BIND service
+      ansible.builtin.service:
+        name: "{{ bind_service_name }}"
+        state: restarted
