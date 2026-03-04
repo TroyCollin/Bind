@@ -1,0 +1,4 @@
+zone "local.domain" {
+    type master;
+    file "/etc/bind/db.local.domain"; # Path to your zone file
+};
